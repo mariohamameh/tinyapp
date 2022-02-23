@@ -8,52 +8,47 @@ function generateRandomString() {
     const minVal = 35 ** 5;
     const randomVal = Math.floor(Math.random() * minVal) + minVal;
     return randomVal.toString(35);
-    
 }
 app.use(bodyParser.urlencoded({ extended: true }));
-
 app.set("view engine", "ejs");
-
-app.post("/urls", (req, res) => {
-    console.log(req.body);  // Log the POST request body to the console
-    res.send('ok');         // Respond with 'Ok' (we will replace this)
+app.get('/', (req, res) => {   
+    
+    res.redirect('/urls'); 
 });
-
+app.post("/urls", (req, res) => {
+    //console.log(req.body); Log the POST request body to the console
+    let shortURL = generateRandomString();
+    urlDatabase[shortURL] = {longURL: req.body.longURL}; 
+    res.redirect(`/urls/${shortURL}`);
+});
 const urlDatabase = {
-    "b2xVn2": "http://www.lighthouselabs.ca",
-    "9sm5xK": "http://www.google.com"
+    "b2xVn2":{longURL: "http://www.lighthouselabs.ca"},
+    "9sm5xK":{longURL: "http://www.google.com"}
+    
 };
 app.get("/urls", (req, res) => {
-    const templateVars = { urls: urlDatabase };
+    const templateVars = { urls: urlDatabase};
     res.render("urls_index", templateVars);
 });
-
-app.get("/urls", (req, res) => {
-    const templateVars = { urls: urlDatabase };
-    res.render("urls_show", templateVars);
-});
-
 app.get("/urls/new", (req, res) => {
-    res.render("urls_new");
+    const templateVars = {urls: urlDatabase}
+    res.render("urls_new", templateVars);
 });
 
 app.get("/urls/:shortURL", (req, res) => {
-    const templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase/* What goes here? */ };
+    const templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL]["longURL"] };
     res.render("urls_show", templateVars);
 });
-
-app.get("/", (req, res) => {
-    res.send("Hello!");
-});
+app.get("/u/:shortURL", (req, res) => {
+    const longURL = urlDatabase[req.params.shortURL].longURL;
+    res.redirect(longURL);
+    
+  });
 
 app.get("/urls.json", (req, res) => {
     res.json(urlDatabase);
 });
-
-app.get("/hello", (req, res) => {
-    res.send("<html><body>Hello <b>Mario</b></body></html>\n");
-});
-
 app.listen(PORT, () => {
     console.log(`Example app listening on port ${PORT}!`);
 });
+
