@@ -27,14 +27,22 @@ app.get('/', (req, res) => {
     res.redirect('/urls'); 
 });
 app.post("/urls", (req, res) => {
-    //console.log(req.body); Log the POST request body to the console
-    let shortURL = generateRandomString();
-    urlDatabase[shortURL] = {longURL: req.body.longURL}; 
-    res.redirect(`/urls/${shortURL}`);
+    if (req.session.user_id){
+        let shortURL = generateRandomString();
+        urlDatabase[shortURL] = {longURL: req.body.longURL,
+        userID: req.session.user_id}; 
+        console.log('app.post(/urls) urlDatabase ', urlDatabase);
+        res.redirect('/urls');
+    } else {
+        console.log(' you can not create new url');
+        res.redirect('/urls');
+    }
+
+    
 });
 const urlDatabase = {
-    "b2xVn2":{longURL: "http://www.lighthouselabs.ca"},
-    "9sm5xK":{longURL: "http://www.google.com"}
+    //"b2xVn2":{longURL: "http://www.lighthouselabs.ca"},
+    //"9sm5xK":{longURL: "http://www.google.com"}
     
 };
 const users = { 
@@ -50,10 +58,10 @@ const users = {
     }
   };
 
-const findUserByEmail = function(email){
-    for(let userID in users) {
-        if (users[userID].email === email) {
-            return users[userID];
+const findUserByEmail = function(email, database){
+    for (let id in database) {
+        if (database[id].email === email) {
+          return database[id];
         }
     }
 }  
@@ -63,7 +71,7 @@ app.post("/register", (req, res) => {
     const password = req.body.password;
     if (!password || !email) {
         res.send('404');
-    } else if (findUserByEmail(email)){
+    } else if (findUserByEmail(email, users)){
         res.send('404');
     } else {
         const user_id = generateRandomString();
@@ -79,40 +87,81 @@ app.post("/register", (req, res) => {
         res.redirect('/urls');
     }
 
-})  
+})
+const urlsForUser = function(userID) {
+    const output = {};
+    for (let shortURL in urlDatabase) {
+        if (urlDatabase[shortURL].userID === userID) {
+            output[shortURL] = urlDatabase[shortURL].longURL;       
+        }
+    }
+    return output;
+} 
 app.get("/urls", (req, res) => {
+    const userUrls = urlsForUser(req.session['user_id']);
+    console.log('app.get(/urls) userUrls ', userUrls);
     const templateVars = { 
         user: users[req.session['user_id']],
-        urls: urlDatabase};
+        urls: userUrls};
     res.render("urls_index", templateVars);
 });
 app.get("/urls/new", (req, res) => {
-    const templateVars = {urls: urlDatabase}
+    const templateVars = {
+        user: users[req.session['user_id']],
+        urls: urlDatabase};
     res.render("urls_new", templateVars);
 });
 
 app.get("/urls/:shortURL", (req, res) => {
-    const templateVars = {shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL]["longURL"] };
+    const templateVars = {shortURL: req.params.shortURL, 
+        longURL: urlDatabase[req.params.shortURL]["longURL"],
+        user: users[req.session['user_id']],
+    
+    };
     res.render("urls_show", templateVars);
 });
 
 app.get("/u/:shortURL", (req, res) => {
-    const longURL = urlDatabase[req.params.shortURL].longURL;
-    res.redirect(longURL);
-    
+    if (urlDatabase[req.params.shortURL]) {
+        const longURL = urlDatabase[req.params.shortURL].longURL;
+        if (longURL === undefined) {
+          res.status(302);
+        } else {
+          res.redirect(longURL);
+        }
+      } else {
+        res.status(404).send("The short URL you are trying to access does not correspond with a long URL at this time.");
+      }    
 });
 app.post("/urls/:shortURL/delete", (req, res) => {
     delete urlDatabase[req.params.shortURL];
     res.redirect("/urls");
 });
 app.post("/urls/:shortURL/edit", (req, res) => {
-
-    res.redirect(`/urls/${req.params.shortURL}`);
-    
+  const userID = req.session.user_id;
+  const shortURL = req.params.shortURL;
+  let usersObj = isUsersLink(urlDatabase, userID);
+  if (usersObj[shortURL]) {
+    urlDatabase[shortURL].longURL = req.body.longURL;
+    res.redirect("/urls");
+  } else {
+    res.render("error", {ErrorStatus: 403, ErrorMessage: "You do not have access to edit this link."});
+  }
 });
+const isUsersLink = function (object, id) {
+    let usersObject = {};
+    for (let key in object) {
+      if (object[key].userID === id) {
+        usersObject[key] = object[key];
+      }
+    }
+    return usersObject;
+  }
 app.get("/register", (req, res) => {
-    
-    res.render('register');
+    const templateVars = { 
+        user : null,
+    }
+    res.render("register", templateVars);
 
 });
 app.get("/login", (req, res) => {
@@ -137,17 +186,16 @@ app.post('/logout', (req, res) => {
 app.post('/login', (req,res) => {
     const email = req.body.email;
     const password = req.body.password;
-    const user = findUserByEmail(email);
+    const user = findUserByEmail(email, users);
     console.log("user ", user);
-    if (!findUserByEmail(email)){
-        res.send('403');
-    } else if (!bcrypt.compareSync(password, findUserByEmail(email).password)){
-        res.send('403');
+    if (!findUserByEmail(email, users)){
+        res.send('no such email 403');
+    } else if (!bcrypt.compareSync(password, findUserByEmail(email, users).password)){
+        res.send('passwords dont match 403');
     } else {    
         req.session.user_id = user.id;
         res.redirect("/urls");
     }
-
 })
 
 app.get("/urls.json", (req, res) => {
