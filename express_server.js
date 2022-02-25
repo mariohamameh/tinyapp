@@ -124,7 +124,7 @@ app.get("/login", (req, res) => {
 });
 app.get("/logout", (req, res) => {
     const templateVars = { 
-        username: req.session['username'],
+        user_id: req.session['user_id'],
     }
     res.render('logout', templateVars);
 
