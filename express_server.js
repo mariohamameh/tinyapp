@@ -130,7 +130,7 @@ app.get("/u/:shortURL", (req, res) => {
           res.redirect(longURL);
         }
       } else {
-        res.status(404).send("The short URL you are trying to access does not correspond with a long URL at this time.");
+        res.status(404).send("404");
       }    
 });
 app.post("/urls/:shortURL/delete", (req, res) => {
@@ -140,23 +140,18 @@ app.post("/urls/:shortURL/delete", (req, res) => {
 app.post("/urls/:shortURL/edit", (req, res) => {
   const userID = req.session.user_id;
   const shortURL = req.params.shortURL;
-  let usersObj = isUsersLink(urlDatabase, userID);
-  if (usersObj[shortURL]) {
-    urlDatabase[shortURL].longURL = req.body.longURL;
-    res.redirect("/urls");
+  const userUrls = urlsForUser(userID, urlDatabase);
+  const templateVars = { urlDatabase, userUrls, shortURL, user: users[userID] };
+  if (!urlDatabase[shortURL]) {
+    const errorMessage = 'This short URL does not exist.';
+    res.status(404).render('urls_error', {user: users[userID], errorMessage});
+  } else if (!userID || !userUrls[shortURL]) {
+    const errorMessage = 'You are not authorized to see this URL.';
+    res.status(401).render('urls_error', {user: users[userID], errorMessage});
   } else {
-    res.render("error", {ErrorStatus: 403, ErrorMessage: "You do not have access to edit this link."});
+    res.render('urls_show', templateVars);
   }
 });
-const isUsersLink = function (object, id) {
-    let usersObject = {};
-    for (let key in object) {
-      if (object[key].userID === id) {
-        usersObject[key] = object[key];
-      }
-    }
-    return usersObject;
-  }
 app.get("/register", (req, res) => {
     const templateVars = { 
         user : null,
